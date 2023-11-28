@@ -18,6 +18,9 @@ import pandas as pd
 import random
 import tensorflow as tf
 
+#import for scikit-learn PCA class
+from sklearn.decomposition import PCA
+
 #Setting visible GPU devices (only using device 0)
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -426,14 +429,14 @@ for idx in range(len(clavrx_flist_test)):
 #%%
 
 # #Save Dataframe
-# df_val.to_csv('HW2_data_val.csv', index=False)
-# df_trng.to_csv('HW2_data_trng.csv', index=False)
-# df_test.to_csv('HW2_data_test.csv', index=False)
+# df_val.to_csv('HW3_data_val.csv', index=False)
+# df_trng.to_csv('HW3_data_trng.csv', index=False)
+# df_test.to_csv('HW3_data_test.csv', index=False)
 
 #Load a DataFrame from a CSV file...run if needed
-df_val = pd.read_csv('HW2_data_val.csv')
-df_trng = pd.read_csv('HW2_data_trng.csv')
-df_test = pd.read_csv('HW2_data_test.csv')
+df_val = pd.read_csv('HW3_data_val.csv')
+df_trng = pd.read_csv('HW3_data_trng.csv')
+df_test = pd.read_csv('HW3_data_test.csv')
 
 #%%
 
@@ -451,6 +454,18 @@ y_val_baseline = df_val['Cld_Msk_Persist']
 X_test = df_test.drop(columns=['Cld_Msk','Cld_Msk_Persist'])
 y_test = df_test['Cld_Msk']
 y_test_baseline = df_test['Cld_Msk_Persist']
+
+#%%
+#Section to apply PCA to reduce dimensions in data
+
+# #Merge the X value dataframes before applying PCA
+# merged_df = pd.merge(X_trng, )
+
+pca = PCA(n_components=.95)
+pca.fit(X_trng)
+X_reduced_trng = pca.transform(X_trng)
+X_reduced_val = pca.transform(X_val)
+X_reduced_test = pca.transform(X_test)
 
 # %%
 #Define random forest and train model
@@ -478,10 +493,10 @@ rf_classifier = RandomForestClassifier(n_estimators = fd["tree_number"],
                            max_samples = fd["max_samples"])
 
 #Train random forest
-rf_classifier.fit(X_trng, y_trng)
+rf_classifier.fit(X_reduced_trng, y_trng)
 
 #Make prediction on all training data
-y_pred_trng = rf_classifier.predict(X_trng)
+y_pred_trng = rf_classifier.predict(X_reduced_trng)
 
 #%%
 #Confusion Matrix on training data
@@ -526,7 +541,7 @@ print(confusion)
 #Confusion Matrix on validation data
 
 #Make prediction on validation data
-y_pred_val = rf_classifier.predict(X_val)
+y_pred_val = rf_classifier.predict(X_reduced_val)
 
 acc = metrics.accuracy_score(y_val, y_pred_val)
 print("validation accuracy: ", np.around(acc*100), '%')
@@ -549,27 +564,27 @@ confusion = confusion_matrix(y_val, y_val_baseline)
 print(confusion)
 
 #%%
-#Look at individual tree
-local_path = '/home/mking/ATS780_HW2/'
-fig_savename = 'rf_cloud_tree'
-tree_to_plot = 0 # Enter the value of the tree that you want to see!
+# #Look at individual tree
+# local_path = '/home/mking/ATS780_HW2/'
+# fig_savename = 'rf_cloud_tree'
+# tree_to_plot = 0 # Enter the value of the tree that you want to see!
 
-#Get predictor feature names
-column_names = X_trng.columns
-column_names = column_names.tolist()
+# #Get predictor feature names
+# column_names = X_trng.columns
+# column_names = column_names.tolist()
 
-tree = rf_classifier[tree_to_plot] # Obtain the tree to plot
-tree_numstr = str(tree_to_plot) # Adds the tree number to filename
+# tree = rf_classifier[tree_to_plot] # Obtain the tree to plot
+# tree_numstr = str(tree_to_plot) # Adds the tree number to filename
 
-complete_savename = fig_savename + '_' + tree_numstr + '.dot'
-export_graphviz(tree,
-                out_file=local_path + '/' + complete_savename,
-                filled=True,
-                proportion=False,
-                leaves_parallel=False,
-                feature_names=column_names)
+# complete_savename = fig_savename + '_' + tree_numstr + '.dot'
+# export_graphviz(tree,
+#                 out_file=local_path + '/' + complete_savename,
+#                 filled=True,
+#                 proportion=False,
+#                 leaves_parallel=False,
+#                 feature_names=column_names)
 
-Source.from_file(local_path + complete_savename)
+# Source.from_file(local_path + complete_savename)
 
 #%%
 #Feature importance
@@ -607,12 +622,12 @@ def plot_feat_importances(importances, feature_list):
     plt.xlabel('Importance'); plt.ylabel('Variable'); plt.title('Variable Importances')
     
     
-plot_feat_importances(calc_importances(rf_classifier, column_names),  column_names)
+# plot_feat_importances(calc_importances(rf_classifier, column_names),  column_names)
 
 
 # %% 
 # Evaluate the model on test data
-y_pred = rf_classifier.predict(X_test)
+y_pred = rf_classifier.predict(X_reduced_test)
 
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Accuracy: {accuracy:.2f}")
