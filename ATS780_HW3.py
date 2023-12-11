@@ -739,19 +739,22 @@ def compile_model(model, settings):
 #%%
 
 #Converting pandas dataframes to numpy arrays
-X_trng_np = X_trng.to_numpy()
+# X_trng_np = X_trng.to_numpy()
 y_trng_np = y_trng.to_numpy()
 y_trng_np = (y_trng_np).astype(int)
 y_trng_hot = np.eye(2)[y_trng_np.flatten()]
-X_val_np = X_val.to_numpy()
+# X_val_np = X_val.to_numpy()
 y_val_np = y_val.to_numpy()
 y_val_np = (y_val_np).astype(int)
 y_val_hot = np.eye(2)[y_val_np.flatten()]
-X_test_np = X_test.to_numpy()
+# X_test_np = X_test.to_numpy()
 y_test_np = y_test.to_numpy()
 
+# X_reduced_trng = pca.transform(X_trng)
+# X_reduced_val = pca.transform(X_val)
+# X_reduced_test = pca.transform(X_test)
 
-Cloud_Mask_Model = build_model(X_trng_np, y_trng_hot, settings)
+Cloud_Mask_Model = build_model(X_reduced_trng, y_trng_hot, settings)
 
 Cloud_Mask_Model = compile_model(Cloud_Mask_Model, settings)
 
@@ -765,11 +768,11 @@ early_stopping_callback = tf.keras.callbacks.EarlyStopping(
 #     1: 1 / np.mean(Ttrain[:, 1] == 1),
 # }
 
-history = Cloud_Mask_Model.fit(X_trng_np,y_trng_hot, 
+history = Cloud_Mask_Model.fit(X_reduced_trng,y_trng_hot, 
                          epochs = settings["max_epochs"], 
                          batch_size=settings["batch_size"], 
                          shuffle=True,
-                         validation_data=[X_val_np,y_val_hot],
+                         validation_data=[X_reduced_val,y_val_hot],
                          callbacks=[early_stopping_callback],
                         #  class_weight = class_weights,
                          verbose = 1)
@@ -805,8 +808,8 @@ plt.close()
 
 
 # %%
-NN_pred_trng_hot = Cloud_Mask_Model.predict(X_trng_np)
-NN_pred_val_hot = Cloud_Mask_Model.predict(X_val_np)
+NN_pred_trng_hot = Cloud_Mask_Model.predict(X_reduced_trng)
+NN_pred_val_hot = Cloud_Mask_Model.predict(X_reduced_val)
 
 #Convert predictions to binary arrays
 NN_pred_trng_hot = np.round(NN_pred_trng_hot)
@@ -835,7 +838,7 @@ confusion_matrix_plot(NN_pred_val, y_val, pred_classes, true_classes)
 # %%
 
 #Test data
-NN_pred_test_hot = Cloud_Mask_Model.predict(X_test_np)
+NN_pred_test_hot = Cloud_Mask_Model.predict(X_reduced_test)
 NN_pred_test_hot = np.round(NN_pred_test_hot)
 NN_pred_test = np.argmax(NN_pred_test_hot, axis=1).reshape(-1, 1)
 
@@ -853,7 +856,7 @@ confusion_matrix_plot(NN_pred_test, y_test, pred_classes, true_classes)
 #Confusion Matrix for test data for random forest baseline
 
 #Make prediction on validation data
-y_pred_test = rf_classifier.predict(X_test)
+y_pred_test = rf_classifier.predict(X_reduced_test)
 
 acc = metrics.accuracy_score(y_test, y_pred_test)
 print("validation accuracy: ", np.around(acc*100), '%')
