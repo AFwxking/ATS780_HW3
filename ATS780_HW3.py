@@ -739,20 +739,14 @@ def compile_model(model, settings):
 #%%
 
 #Converting pandas dataframes to numpy arrays
-# X_trng_np = X_trng.to_numpy()
 y_trng_np = y_trng.to_numpy()
 y_trng_np = (y_trng_np).astype(int)
 y_trng_hot = np.eye(2)[y_trng_np.flatten()]
-# X_val_np = X_val.to_numpy()
 y_val_np = y_val.to_numpy()
 y_val_np = (y_val_np).astype(int)
 y_val_hot = np.eye(2)[y_val_np.flatten()]
-# X_test_np = X_test.to_numpy()
 y_test_np = y_test.to_numpy()
 
-# X_reduced_trng = pca.transform(X_trng)
-# X_reduced_val = pca.transform(X_val)
-# X_reduced_test = pca.transform(X_test)
 
 Cloud_Mask_Model = build_model(X_reduced_trng, y_trng_hot, settings)
 
