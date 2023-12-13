@@ -472,8 +472,8 @@ X_reduced_test = pca.transform(X_test)
 
 #Define Hyperparameters
 fd = {
-    "tree_number": 15,    # number of trees to "average" together to create a random forest
-    "tree_depth": 8,      # maximum depth allowed for each tree
+    "tree_number": 50,    # number of trees to "average" together to create a random forest
+    "tree_depth": 10,      # maximum depth allowed for each tree
     "node_split": 50,     # minimum number of training samples needed to split a node
     "leaf_samples": 50,    # minimum number of training samples required to make a leaf node
     "criterion": 'gini',  # information gain metric, 'gini' or 'entropy'
@@ -653,181 +653,182 @@ confusion = confusion_matrix(y_test, y_test_baseline)
 print(confusion)
 
 #%%
+hidden_nodes_number = [25, 50, 75]
 
-#Build Neural Network
-settings = {
-    "hiddens": [50, 50, 50],
-    "activations": ["relu", "relu", "relu"],
-    "learning_rate": 0.0001,
-    "random_seed": 33,
-    "max_epochs": 100,
-    "batch_size": 64,
-    "patience": 20,
-    "dropout_rate": 0.,
-}
+for idx in range(len(hidden_nodes_number)):
 
-def build_model(x_train, y_train, settings):
-    # create input layer
-    input_layer = tf.keras.layers.Input(shape=x_train.shape[1:])
+    #Build Neural Network
+    settings = {
+        "hiddens": [hidden_nodes_number[idx], hidden_nodes_number[idx], hidden_nodes_number[idx]],
+        "activations": ["relu", "relu", "relu"],
+        "learning_rate": 0.0001,
+        "random_seed": 33,
+        "max_epochs": 100,
+        "batch_size": 64,
+        "patience": 20,
+        "dropout_rate": 0.,
+    }
 
-    # create a normalization layer if you would like
-    normalizer = tf.keras.layers.Normalization(axis=(1,))
-    normalizer.adapt(x_train)
-    layers = normalizer(input_layer)
+    def build_model(x_train, y_train, settings):
+        # create input layer
+        input_layer = tf.keras.layers.Input(shape=x_train.shape[1:])
 
-    # create hidden layers each with specific number of nodes
-    assert len(settings["hiddens"]) == len(
-        settings["activations"]
-    ), "hiddens and activations settings must be the same length."
+        # create a normalization layer if you would like
+        normalizer = tf.keras.layers.Normalization(axis=(1,))
+        normalizer.adapt(x_train)
+        layers = normalizer(input_layer)
 
-    # add dropout layer
-    layers = tf.keras.layers.Dropout(rate=settings["dropout_rate"])(layers)
+        # create hidden layers each with specific number of nodes
+        assert len(settings["hiddens"]) == len(
+            settings["activations"]
+        ), "hiddens and activations settings must be the same length."
 
-    for hidden, activation in zip(settings["hiddens"], settings["activations"]):
-        layers = tf.keras.layers.Dense(
-            units=hidden,
-            activation=activation,
+        # add dropout layer
+        layers = tf.keras.layers.Dropout(rate=settings["dropout_rate"])(layers)
+
+        for hidden, activation in zip(settings["hiddens"], settings["activations"]):
+            layers = tf.keras.layers.Dense(
+                units=hidden,
+                activation=activation,
+                use_bias=True,
+                kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0, l2=0),
+                bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"]),
+                kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"]),
+            )(layers)
+
+        # # create output layer
+        # output_layer = tf.keras.layers.Dense(
+        #     units=y_train.shape[-1],
+        #     activation="linear",
+        #     use_bias=True,
+        #     bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 1),
+        #     kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 2),
+        # )(layers)
+
+        # create output layer
+        output_layer = tf.keras.layers.Dense(
+            units=y_train.shape[-1],
+            activation="sigmoid",
             use_bias=True,
-            kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0, l2=0),
-            bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"]),
-            kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"]),
-        )(layers)
+            bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 1),
+            kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 2),
+        )(layers)    
 
-    # # create output layer
-    # output_layer = tf.keras.layers.Dense(
-    #     units=y_train.shape[-1],
-    #     activation="linear",
-    #     use_bias=True,
-    #     bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 1),
-    #     kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 2),
-    # )(layers)
+        # construct the model
+        model = tf.keras.Model(inputs=input_layer, outputs=output_layer)
+        model.summary()
 
-    # create output layer
-    output_layer = tf.keras.layers.Dense(
-        units=y_train.shape[-1],
-        activation="sigmoid",
-        use_bias=True,
-        bias_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 1),
-        kernel_initializer=tf.keras.initializers.RandomNormal(seed=settings["random_seed"] + 2),
-    )(layers)    
-
-    # construct the model
-    model = tf.keras.Model(inputs=input_layer, outputs=output_layer)
-    model.summary()
-
-    return model
+        return model
 
 
-def compile_model(model, settings):
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=settings["learning_rate"]),
-        loss=tf.keras.losses.CategoricalCrossentropy(),
-        metrics=[
-            tf.keras.metrics.CategoricalAccuracy(),
-        ],
-    )
-    return model
-
-# def compile_model(model, settings):
-#     model.compile(
-#         optimizer=tf.keras.optimizers.Adam(learning_rate=settings["learning_rate"]),
-#         loss='mse',
-#         metrics='mae')
+    def compile_model(model, settings):
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=settings["learning_rate"]),
+            loss=tf.keras.losses.CategoricalCrossentropy(),
+            metrics=[
+                tf.keras.metrics.CategoricalAccuracy(),
+            ],
+        )
+        return model
     
-#     return model
+    #Converting pandas dataframes to numpy arrays
+    y_trng_np = y_trng.to_numpy()
+    y_trng_np = (y_trng_np).astype(int)
+    y_trng_hot = np.eye(2)[y_trng_np.flatten()]
+    y_val_np = y_val.to_numpy()
+    y_val_np = (y_val_np).astype(int)
+    y_val_hot = np.eye(2)[y_val_np.flatten()]
+    y_test_np = y_test.to_numpy()
 
-#%%
+    Cloud_Mask_Model = build_model(X_reduced_trng, y_trng_hot, settings)
 
-#Converting pandas dataframes to numpy arrays
-y_trng_np = y_trng.to_numpy()
-y_trng_np = (y_trng_np).astype(int)
-y_trng_hot = np.eye(2)[y_trng_np.flatten()]
-y_val_np = y_val.to_numpy()
-y_val_np = (y_val_np).astype(int)
-y_val_hot = np.eye(2)[y_val_np.flatten()]
-y_test_np = y_test.to_numpy()
+    Cloud_Mask_Model = compile_model(Cloud_Mask_Model, settings)
 
+    # define the early stopping callback
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss", patience=settings["patience"], restore_best_weights=True, mode="auto")
 
-Cloud_Mask_Model = build_model(X_reduced_trng, y_trng_hot, settings)
+    # # define the class weights
+    # class_weights = {
+    #     0: 1 / np.mean(Ttrain[:, 0] == 1),
+    #     1: 1 / np.mean(Ttrain[:, 1] == 1),
+    # }
 
-Cloud_Mask_Model = compile_model(Cloud_Mask_Model, settings)
+    history = Cloud_Mask_Model.fit(X_reduced_trng,y_trng_hot, 
+                            epochs = settings["max_epochs"], 
+                            batch_size=settings["batch_size"], 
+                            shuffle=True,
+                            validation_data=[X_reduced_val,y_val_hot],
+                            callbacks=[early_stopping_callback],
+                            #  class_weight = class_weights,
+                            verbose = 1)
 
-# define the early stopping callback
-early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-    monitor="val_loss", patience=settings["patience"], restore_best_weights=True, mode="auto")
+    #Print names of items stored in history...then use to plot loss history
+    print(history.history.keys())
 
-# # define the class weights
-# class_weights = {
-#     0: 1 / np.mean(Ttrain[:, 0] == 1),
-#     1: 1 / np.mean(Ttrain[:, 1] == 1),
-# }
+    # Create subplots
+    fig, axs = plt.subplots(1, 2, figsize=(15, 8))
+    # Print evolution of loss - separately for training and validation data
+    axs[0].plot(history.epoch, history.history['loss'], label='Trng Loss', color='blue')
+    axs[0].plot(history.epoch, history.history['val_loss'], label='Val Loss', color='red')
+    axs[0].set_title(f'Training/Validation Loss History: {settings["hiddens"][0]} nodes per hidden layer')
+    axs[0].legend()
+    axs[0].set_xlabel('epoch')
+    axs[0].set_ylabel('Categorical Crossentropy')
+    # Plot Mean absolute error of training & validation data
+    axs[1].plot(history.epoch, history.history['categorical_accuracy'], label='Trng Cat Accuracy', color='blue')
+    axs[1].plot(history.epoch, history.history['val_categorical_accuracy'], label='Val Cat Accuracy', color='red')
+    axs[1].set_title(f'Training/Validation Accuracy History: {settings["hiddens"][0]} nodes per hidden layer')
+    axs[1].legend()
+    axs[1].set_xlabel('epoch')
+    axs[1].set_ylabel('Categorical Accuracy')
 
-history = Cloud_Mask_Model.fit(X_reduced_trng,y_trng_hot, 
-                         epochs = settings["max_epochs"], 
-                         batch_size=settings["batch_size"], 
-                         shuffle=True,
-                         validation_data=[X_reduced_val,y_val_hot],
-                         callbacks=[early_stopping_callback],
-                        #  class_weight = class_weights,
-                         verbose = 1)
+    #Save figure
+    #Before saving figure...check for file path
+    path_test = os.path.exists('Plots/')
+    if (path_test == False): #If path doesn't exist...create folder
+        os.mkdir('Plots/')
+    plt.savefig(f'Plots/Trng_Loss_Hiddens_{settings["hiddens"][0]}.png')
+    plt.show()
+    plt.close()
 
-#Print names of items stored in history...then use to plot loss history
-print(history.history.keys())
-
-# Create subplots
-fig, axs = plt.subplots(1, 2, figsize=(15, 8))
-# Print evolution of loss - separately for training and validation data
-axs[0].plot(history.epoch, history.history['loss'], label='Trng Loss', color='blue')
-axs[0].plot(history.epoch, history.history['val_loss'], label='Val Loss', color='red')
-axs[0].set_title(f'Training/Validation Loss History: {settings["hiddens"][0]} nodes per hidden layer')
-axs[0].legend()
-axs[0].set_xlabel('epoch')
-axs[0].set_ylabel('Categorical Crossentropy')
-# Plot Mean absolute error of training & validation data
-axs[1].plot(history.epoch, history.history['categorical_accuracy'], label='Trng Cat Accuracy', color='blue')
-axs[1].plot(history.epoch, history.history['val_categorical_accuracy'], label='Val Cat Accuracy', color='red')
-axs[1].set_title(f'Training/Validation Accuracy History: {settings["hiddens"][0]} nodes per hidden layer')
-axs[1].legend()
-axs[1].set_xlabel('epoch')
-axs[1].set_ylabel('Categorical Accuracy')
-
-#Save figure
-#Before saving figure...check for file path
-path_test = os.path.exists('Plots/')
-if (path_test == False): #If path doesn't exist...create folder
-    os.mkdir('Plots/')
-plt.savefig(f'Plots/Trng_Loss_Hiddens_{settings["hiddens"][0]}.png')
-plt.show()
-plt.close()
+    #Save model
+    Cloud_Mask_Model.save(f'Cloud_Mask_model_{hidden_nodes_number[idx]}')
 
 
 # %%
-NN_pred_trng_hot = Cloud_Mask_Model.predict(X_reduced_trng)
-NN_pred_val_hot = Cloud_Mask_Model.predict(X_reduced_val)
 
-#Convert predictions to binary arrays
-NN_pred_trng_hot = np.round(NN_pred_trng_hot)
-NN_pred_trng = np.argmax(NN_pred_trng_hot, axis=1).reshape(-1, 1)
-NN_pred_val_hot = np.round(NN_pred_val_hot)
-NN_pred_val = np.argmax(NN_pred_val_hot, axis=1).reshape(-1, 1)
+for idx in range(len(hidden_nodes_number)):
 
-#Confusion Matrix on training data
-acc = metrics.accuracy_score(y_trng, NN_pred_trng)
-print("training accuracy: ", np.around(acc*100), '%')
-confusion = confusion_matrix(y_trng, NN_pred_trng)
-print(confusion)
+    #Load model
+    Cloud_Mask_model = tf.keras.models.load_model(f'Cloud_Mask_model_{hidden_nodes_number[idx]}')
 
-#Plot Confusion Matrix
-confusion_matrix_plot(NN_pred_trng, y_trng, pred_classes, true_classes)
+    NN_pred_trng_hot = Cloud_Mask_Model.predict(X_reduced_trng)
+    NN_pred_val_hot = Cloud_Mask_Model.predict(X_reduced_val)
 
-#Confusion Matrix on training data
-acc = metrics.accuracy_score(y_val, NN_pred_val)
-print("validation accuracy: ", np.around(acc*100), '%')
-confusion = confusion_matrix(y_val_baseline, NN_pred_val)
-print(confusion)
+    #Convert predictions to binary arrays
+    NN_pred_trng_hot = np.round(NN_pred_trng_hot)
+    NN_pred_trng = np.argmax(NN_pred_trng_hot, axis=1).reshape(-1, 1)
+    NN_pred_val_hot = np.round(NN_pred_val_hot)
+    NN_pred_val = np.argmax(NN_pred_val_hot, axis=1).reshape(-1, 1)
 
-#Plot Confusion Matrix
-confusion_matrix_plot(NN_pred_val, y_val, pred_classes, true_classes)
+    #Confusion Matrix on training data
+    acc = metrics.accuracy_score(y_trng, NN_pred_trng)
+    print("training accuracy: ", np.around(acc*100), '%')
+    confusion = confusion_matrix(y_trng, NN_pred_trng)
+    print(confusion)
+
+    #Plot Confusion Matrix
+    confusion_matrix_plot(NN_pred_trng, y_trng, pred_classes, true_classes)
+
+    #Confusion Matrix on validation data
+    acc = metrics.accuracy_score(y_val, NN_pred_val)
+    print("validation accuracy: ", np.around(acc*100), '%')
+    confusion = confusion_matrix(y_val_baseline, NN_pred_val)
+    print(confusion)
+
+    #Plot Confusion Matrix
+    confusion_matrix_plot(NN_pred_val, y_val, pred_classes, true_classes)
 
 # %%
 
@@ -853,7 +854,7 @@ confusion_matrix_plot(NN_pred_test, y_test, pred_classes, true_classes)
 y_pred_test = rf_classifier.predict(X_reduced_test)
 
 acc = metrics.accuracy_score(y_test, y_pred_test)
-print("validation accuracy: ", np.around(acc*100), '%')
+print("test accuracy: ", np.around(acc*100), '%')
 
 confusion_validation = confusion_matrix(y_test, y_pred_test)
 
